@@ -1,4 +1,4 @@
-name: Build APK And Publish
+name: Build APK And Release
 
 on:
   push:
@@ -37,45 +37,27 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Gradle Permission
+      - name: Grant Gradle Permission
         run: chmod +x android/gradlew
 
-      - name: Build APK
+      - name: Build Release APK
         run: |
           cd android
           ./gradlew assembleRelease
 
-      - name: Clone Public Repo
+      - name: Find APK
         run: |
-          git clone https://x-access-token:${{ secrets.BUILD_REPO_TOKEN }}@github.com/hemantcomfygen/react-native-app-build.git
-
-      - name: Read App Info
-        run: |
-          echo "APP_NAME=$(node -p "require('./package.json').name")" >> $GITHUB_ENV
-
-      - name: Show APK Files
-        run: |
-          find android/app/build/outputs -type f
-
-      - name: Copy APK
-        run: |
-          mkdir -p react-native-app-build/releases/${GITHUB_REF_NAME}
           APK_FILE=$(find android/app/build/outputs/apk -name "*.apk" | head -n 1)
 
-          echo "APK Found: $APK_FILE"
+          echo "APK_FILE=$APK_FILE" >> $GITHUB_ENV
 
-          cp "$APK_FILE" \
-            react-native-app-build/releases/${GITHUB_REF_NAME}/${APP_NAME}-${GITHUB_REF_NAME}.apk
+          echo "Found APK:"
+          echo "$APK_FILE"
 
-      - name: Commit APK
-        run: |
-          cd react-native-app-build
-
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-
-          git add .
-
-          git commit -m "Release ${GITHUB_REF_NAME}" || true
-
-          git push
+      - name: Create GitHub Release And Upload APK
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.APK_FILE }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.BUILD_REPO_TOKEN }}
